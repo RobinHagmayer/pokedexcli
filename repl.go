@@ -79,6 +79,11 @@ func getCliCommands() map[string]CliCommand {
 			Description: "Displays the next 20 location areas",
 			Callback:    commandMap,
 		},
+		"mapb": {
+			Name:        "mapb",
+			Description: "Displays the previous 20 location areas",
+			Callback:    commandMapb,
+		},
 	}
 }
 
@@ -108,6 +113,48 @@ func commandMap(config *config) error {
 
 	if config.next != "" {
 		url = config.next
+	}
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Received non 200 status code: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	var apiResponse LocationAreaResponse
+	err = json.Unmarshal(body, &apiResponse)
+	if err != nil {
+		return err
+	}
+
+	if next := apiResponse.Next; next != nil {
+		config.next = *next
+	}
+	if previous := apiResponse.Previous; previous != nil {
+		config.previous = *previous
+	}
+
+	for i := range apiResponse.Results {
+		fmt.Println(apiResponse.Results[i].Name)
+	}
+
+	return nil
+}
+
+func commandMapb(config *config) error {
+	url := "https://pokeapi.co/api/v2/location-area"
+
+	if config.previous != "" {
+		url = config.previous
 	}
 
 	resp, err := http.Get(url)
