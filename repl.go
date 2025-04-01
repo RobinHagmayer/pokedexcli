@@ -2,18 +2,39 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 )
 
-type cliCommand struct {
-	name        string
-	description string
-	callback    func() error
+type config struct {
+	next     string
+	previous string
+}
+
+type CliCommand struct {
+	Name        string
+	Description string
+	Callback    func(*config) error
+}
+
+type LocationArea struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+type LocationAreaResponse struct {
+	Count    int            `json:"count"`
+	Next     *string        `json:"next"`
+	Previous *string        `json:"previous"`
+	Results  []LocationArea `json:"results"`
 }
 
 func StartREPL() {
+	var config config
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
@@ -32,26 +53,31 @@ func StartREPL() {
 			continue
 		}
 
-		err := cmd.callback()
+		err := cmd.Callback(&config)
 		if err != nil {
-			errMsg := fmt.Errorf("error after calling %s: %w", cmd.name, err)
+			errMsg := fmt.Errorf("Error after calling %s: %w", cmd.Name, err)
 			fmt.Println(errMsg)
 			continue
 		}
 	}
 }
 
-func getCliCommands() map[string]cliCommand {
-	return map[string]cliCommand{
+func getCliCommands() map[string]CliCommand {
+	return map[string]CliCommand{
 		"exit": {
-			name:        "exit",
-			description: "Exit the Pokedex",
-			callback:    commandExit,
+			Name:        "exit",
+			Description: "Exit the Pokedex",
+			Callback:    commandExit,
 		},
 		"help": {
-			name:        "help",
-			description: "Displays a help message",
-			callback:    commandHelp,
+			Name:        "help",
+			Description: "Displays a help message",
+			Callback:    commandHelp,
+		},
+		"map": {
+			Name:        "map",
+			Description: "Displays the next 20 location areas",
+			Callback:    commandMap,
 		},
 	}
 }
@@ -60,19 +86,61 @@ func cleanInput(text string) []string {
 	return strings.Fields(strings.ToLower(text))
 }
 
-func commandExit() error {
+func commandExit(config *config) error {
 	fmt.Println("Closing the Pokedex... Goodbye!")
 	os.Exit(0)
 	return nil
 }
 
-func commandHelp() error {
+func commandHelp(config *config) error {
 	fmt.Println("Welcome to the Pokedex!")
 	fmt.Println("Usage:")
 	fmt.Println()
 
 	for _, cmd := range getCliCommands() {
-		fmt.Printf("%s: %s\n", cmd.name, cmd.description)
+		fmt.Printf("%s: %s\n", cmd.Name, cmd.Description)
 	}
+	return nil
+}
+
+func commandMap(config *config) error {
+	url := "https://pokeapi.co/api/v2/location-area"
+
+	if config.next != "" {
+		url = config.next
+	}
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Received non 200 status code: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	var apiResponse LocationAreaResponse
+	err = json.Unmarshal(body, &apiResponse)
+	if err != nil {
+		return err
+	}
+
+	if next := apiResponse.Next; next != nil {
+		config.next = *next
+	}
+	if previous := apiResponse.Previous; previous != nil {
+		config.previous = *previous
+	}
+
+	for i := range apiResponse.Results {
+		fmt.Println(apiResponse.Results[i].Name)
+	}
+
 	return nil
 }
