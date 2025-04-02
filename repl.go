@@ -8,11 +8,14 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/RobinHagmayer/pokedexcli/internal/pokeapi"
 )
 
 type config struct {
-	next     string
-	previous string
+	pokeapiClient       pokeapi.Client
+	nextLocationURL     *string
+	previousLocationURL *string
 }
 
 type CliCommand struct {
@@ -33,8 +36,7 @@ type LocationAreaResponse struct {
 	Results  []LocationArea `json:"results"`
 }
 
-func StartREPL() {
-	var config config
+func startREPL(config *config) {
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
@@ -53,7 +55,7 @@ func StartREPL() {
 			continue
 		}
 
-		err := cmd.Callback(&config)
+		err := cmd.Callback(config)
 		if err != nil {
 			errMsg := fmt.Errorf("Error after calling %s: %w", cmd.Name, err)
 			fmt.Println(errMsg)
@@ -77,7 +79,7 @@ func getCliCommands() map[string]CliCommand {
 		"map": {
 			Name:        "map",
 			Description: "Displays the next 20 location areas",
-			Callback:    commandMap,
+			Callback:    commandMapf,
 		},
 		"mapb": {
 			Name:        "mapb",
@@ -108,11 +110,11 @@ func commandHelp(config *config) error {
 	return nil
 }
 
-func commandMap(config *config) error {
+func commandMapf(config *config) error {
 	url := "https://pokeapi.co/api/v2/location-area"
 
-	if config.next != "" {
-		url = config.next
+	if config.nextLocationURL != nil {
+		url = *config.nextLocationURL
 	}
 
 	resp, err := http.Get(url)
@@ -136,12 +138,8 @@ func commandMap(config *config) error {
 		return err
 	}
 
-	if next := apiResponse.Next; next != nil {
-		config.next = *next
-	}
-	if previous := apiResponse.Previous; previous != nil {
-		config.previous = *previous
-	}
+	config.nextLocationURL = apiResponse.Next
+	config.previousLocationURL = apiResponse.Previous
 
 	for i := range apiResponse.Results {
 		fmt.Println(apiResponse.Results[i].Name)
@@ -153,8 +151,8 @@ func commandMap(config *config) error {
 func commandMapb(config *config) error {
 	url := "https://pokeapi.co/api/v2/location-area"
 
-	if config.previous != "" {
-		url = config.previous
+	if config.previousLocationURL != nil {
+		url = *config.previousLocationURL
 	}
 
 	resp, err := http.Get(url)
@@ -178,12 +176,8 @@ func commandMapb(config *config) error {
 		return err
 	}
 
-	if next := apiResponse.Next; next != nil {
-		config.next = *next
-	}
-	if previous := apiResponse.Previous; previous != nil {
-		config.previous = *previous
-	}
+	config.nextLocationURL = apiResponse.Next
+	config.previousLocationURL = apiResponse.Previous
 
 	for i := range apiResponse.Results {
 		fmt.Println(apiResponse.Results[i].Name)
