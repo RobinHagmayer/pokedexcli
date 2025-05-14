@@ -13,12 +13,13 @@ type config struct {
 	pokeapiClient       pokeapi.Client
 	nextLocationURL     *string
 	previousLocationURL *string
+	location            *string
 }
 
 type CliCommand struct {
 	Name        string
 	Description string
-	Callback    func(*config) error
+	Callback    func(*config, ...string) error
 }
 
 func startREPL(config *config) {
@@ -32,6 +33,10 @@ func startREPL(config *config) {
 			continue
 		}
 		cmdName := input[0]
+		args := []string{}
+		if len(input) > 1 {
+			args = input[1:]
+		}
 
 		cmd, ok := getCliCommands()[cmdName]
 		if !ok {
@@ -39,7 +44,7 @@ func startREPL(config *config) {
 			continue
 		}
 
-		err := cmd.Callback(config)
+		err := cmd.Callback(config, args...)
 		if err != nil {
 			errMsg := fmt.Errorf("Error after calling %s: %w", cmd.Name, err)
 			fmt.Println(errMsg)
@@ -69,6 +74,11 @@ func getCliCommands() map[string]CliCommand {
 			Name:        "mapb",
 			Description: "Displays the previous 20 location areas",
 			Callback:    commandMapb,
+		},
+		"explore": {
+			Name:        "explore <location_name>",
+			Description: "List all Pokemons from the given location",
+			Callback:    commandExplore,
 		},
 	}
 }
