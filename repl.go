@@ -13,7 +13,7 @@ type config struct {
 	pokeapiClient       pokeapi.Client
 	nextLocationURL     *string
 	previousLocationURL *string
-	location            *string
+	caughtPokemon       map[string]pokeapi.Pokemon
 }
 
 type CliCommand struct {
@@ -79,6 +79,11 @@ func getCliCommands() map[string]CliCommand {
 			Name:        "explore <location_name>",
 			Description: "List all Pokemons from the given location",
 			Callback:    commandExplore,
+		},
+		"catch": {
+			Name:        "catch <pokemon_name>",
+			Description: "Try to catch a Pokemon and add it to your Pokedex",
+			Callback:    commandCatch,
 		},
 	}
 }
